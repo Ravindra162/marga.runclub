@@ -12,7 +12,7 @@ export function Hero({ onExplore }) {
             <button className="button button-primary button-large" type="button" onClick={onExplore}>Explore upcoming events <Icon name="arrow_forward" size={20} /></button>
             <a className="underlined-link" href="#community">Join the community <Icon name="groups" size={18} /></a>
           </div>
-          <div className="trust-line"><Icon name="verified" size={18} /> Always free for first-timers • UPI / PhonePe supported for court events</div>
+          <div className="trust-line"><Icon name="verified" size={18} /> Always free for first-timers • UPI supported for court events</div>
           <div className="hero-metrics">
             <div><strong>1,800+</strong><span>Active Members</span></div>
             <div><strong>4</strong><span>Weekly Meetups</span></div>

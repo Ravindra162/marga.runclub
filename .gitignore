@@ -4,3 +4,7 @@ server/node_modules/
 .env
 server/.env
 .DS_Store
+.neon
+.env.local
+node_modules/
+.vercel

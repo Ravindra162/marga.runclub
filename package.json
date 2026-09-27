@@ -3,11 +3,26 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "ui",
+    "server"
+  ],
   "scripts": {
-    "dev": "npm run dev:server & npm run dev:ui",
+    "dev": "server_pid=0; ui_pid=0; trap 'test \"$server_pid\" = 0 || kill \"$server_pid\" 2>/dev/null; test \"$ui_pid\" = 0 || kill \"$ui_pid\" 2>/dev/null' EXIT INT TERM; npm run dev:server & server_pid=$!; npm run dev:ui & ui_pid=$!; wait \"$server_pid\" \"$ui_pid\"",
     "dev:ui": "npm --prefix ui run dev",
     "dev:server": "npm --prefix server run dev",
-    "build": "npm --prefix ui run build",
+    "build": "vite build --config ui/vite.config.js",
     "start": "npm --prefix server run start"
+  },
+  "dependencies": {
+    "@neon/config": "^1.8.2",
+    "@neon/env": "^1.4.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "better-auth": "^1.7.6",
+    "dotenv": "^16.6.1",
+    "pg": "^8.23.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "^8.3.1"
   }
 }

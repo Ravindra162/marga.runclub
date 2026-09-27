@@ -5,6 +5,52 @@ function inputType(type) {
   return ({ email: 'email', phone: 'tel', number: 'number', date: 'date', time: 'time' })[type] || 'text'
 }
 
+function fieldValue(fields, answers, predicate) {
+  const field = fields.find(predicate)
+  return field ? answers[field.key] : undefined
+}
+
+function identityAnswers(fields, answers) {
+  const email = answers.email || fieldValue(fields, answers, (field) => field.type === 'email' || /email/i.test(`${field.key} ${field.label}`))
+  const name = answers.full_name || answers.name || fieldValue(fields, answers, (field) => {
+    const text = `${field.key} ${field.label}`.toLowerCase()
+    return /full.?name|your.?name|what.*name|\bname\b/.test(text) && !/emergency/.test(text)
+  })
+  const phone = answers.phone || fieldValue(fields, answers, (field) => field.type === 'phone' || /whats?app|phone|mobile|contact.?number/i.test(`${field.key} ${field.label}`))
+  return { name: String(name || '').trim(), email: String(email || '').trim(), phone: String(phone || '').trim() }
+}
+
+function loadRazorpay() {
+  if (window.Razorpay) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = resolve
+    script.onerror = () => reject(new Error('Razorpay Checkout could not be loaded.'))
+    document.head.appendChild(script)
+  })
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+async function verifyOrReconcilePayment({ registrationCode, payment, checkoutResult }) {
+  let lastError = new Error('Payment verification is still processing.')
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const verifyResponse = await fetch('/api/payments/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ registrationCode, ...checkoutResult }) })
+    const verifyResult = await verifyResponse.json()
+    if (verifyResponse.ok) return verifyResult
+    lastError = new Error(verifyResult.error || 'Payment verification failed.')
+
+    const statusResponse = await fetch(`/api/payments/${encodeURIComponent(payment.merchantOrderId)}/status`)
+    const statusResult = await statusResponse.json()
+    if (statusResponse.ok && statusResult.payment?.status === 'paid') return { registration: { registrationCode, status: 'confirmed' }, payment: statusResult.payment }
+    if (attempt < 3) await wait(1000 * (attempt + 1))
+  }
+  throw lastError
+}
+
 function DynamicField({ field, value, onChange }) {
   const config = field.config || {}
   if (field.type === 'heading') return <h3 className="dynamic-field-heading">{field.label}</h3>
@@ -27,25 +73,52 @@ export function RegistrationModal({ event, onClose }) {
     const onKeyDown = (e) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKeyDown)
     document.body.classList.add('modal-open')
-    fetch(`/api/events/${encodeURIComponent(event.id)}/form`).then((response) => response.json()).then((result) => setForm(result.form)).catch(() => setForm(null))
+    const occurrenceId = event.occurrenceId || event.id
+    fetch(`/api/events/${encodeURIComponent(occurrenceId)}/form`).then((response) => response.json()).then((result) => setForm(result.form)).catch(() => setForm(null))
     return () => { document.removeEventListener('keydown', onKeyDown); document.body.classList.remove('modal-open') }
   }, [event.id, onClose])
 
   async function submitRegistration(e) {
     e.preventDefault(); setSubmitting(true); setError('')
     try {
-      const response = await fetch('/api/registrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: event.id, name: answers.full_name, email: answers.email, phone: answers.phone, answers }) })
+      const identity = identityAnswers(form?.fields || [], answers)
+      const name = identity.name
+      const email = identity.email
+      const occurrenceId = event.occurrenceId || event.id
+      if (name.length < 2 || !email.includes('@') || !occurrenceId) throw new Error('Please enter your name and a valid email address.')
+      if (form?.fields?.some((field) => field.required && (answers[field.key] === undefined || answers[field.key] === '' || (Array.isArray(answers[field.key]) && !answers[field.key].length)))) throw new Error('Please complete all required fields.')
+       const response = await fetch('/api/registrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: occurrenceId, name, email, phone: identity.phone, answers }) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Unable to register right now.')
       if (result.registration.paymentRequired) {
         const paymentResponse = await fetch('/api/payments/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ registrationCode: result.registration.registration_code || result.registration.registrationCode, redirectUrl: window.location.href }) })
         const paymentResult = await paymentResponse.json()
         if (!paymentResponse.ok) throw new Error(paymentResult.error || 'Your spot was saved, but checkout could not be started.')
-        if (paymentResult.payment?.checkoutUrl && !paymentResult.payment.demo) {
-          window.location.assign(paymentResult.payment.checkoutUrl)
-          return
-        }
-        result.registration.paymentDemo = true
+        const payment = paymentResult.payment
+        await loadRazorpay()
+        await new Promise((resolve, reject) => {
+          const checkout = new window.Razorpay({
+            key: payment.keyId,
+            amount: payment.amount,
+            currency: payment.currency,
+            name: 'Marga Run Club',
+            description: event.title,
+            order_id: payment.razorpayOrderId,
+            prefill: { name, email, contact: identity.phone },
+            notes: { registration_code: result.registration.registration_code || result.registration.registrationCode },
+            theme: { color: '#d94f2b' },
+            handler: async (checkoutResult) => {
+              try {
+                const registrationCode = result.registration.registration_code || result.registration.registrationCode
+                const verifyResult = await verifyOrReconcilePayment({ registrationCode, payment, checkoutResult })
+                result.registration = { ...result.registration, ...verifyResult.registration, paymentRequired: false, paymentStatus: 'paid' }
+                resolve()
+              } catch (verificationError) { reject(verificationError) }
+            },
+            modal: { ondismiss: () => reject(new Error('Payment was cancelled. Your spot is still held while payment remains pending.')) },
+          })
+          checkout.open()
+        })
       }
       setSubmitted(result.registration)
     } catch (submitError) { setError(submitError.message || 'Unable to register right now.') } finally { setSubmitting(false) }
@@ -56,5 +129,5 @@ export function RegistrationModal({ event, onClose }) {
     { key: 'email', type: 'email', label: 'Email address', required: true, config: { placeholder: 'you@example.com' } },
   ]
 
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="registration-modal" role="dialog" aria-modal="true" aria-labelledby="registration-title"><button className="modal-close" type="button" onClick={onClose} aria-label="Close registration"><Icon name="close" size={22} /></button>{submitted ? <div className="success-state"><span className="success-icon"><Icon name="check" size={28} /></span><div className="section-kicker">{submitted.paymentRequired ? 'SPOT HELD' : "YOU'RE ON THE LIST"}</div><h2>{submitted.paymentRequired ? 'PAYMENT CHECKOUT READY' : `SEE YOU AT ${event.title.toUpperCase()}`}</h2><p>Your registration code is <strong>{submitted.registration_code || submitted.registrationCode}</strong>. {submitted.paymentRequired ? (submitted.paymentDemo ? 'Demo mode is active, so no money was charged. Add PhonePe credentials on the server to enable checkout.' : 'Complete PhonePe checkout to confirm your spot.') : `We’ll send the meetup details to ${answers.email}.`}</p><button type="button" className="button button-primary" onClick={onClose}>Done <Icon name="arrow_forward" size={18} /></button></div> : <><div className="section-kicker">MARGA EVENT RSVP</div><h2 id="registration-title">JOIN {event.title.toUpperCase()}</h2><p className="modal-intro">A friendly spot is waiting. Add your details and we’ll confirm the meetup by email.</p><div className="modal-event-summary"><span className="modal-day">{event.dayLabel}</span><strong>{event.location}</strong><small>{event.price === 'Free' || event.price === 'Free RSVP' ? 'Free community entry' : `${event.price} per player`}</small></div><form onSubmit={submitRegistration}>{fields.map((field) => <DynamicField key={field.id || field.key} field={field} value={answers[field.key]} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary modal-submit" type="submit" disabled={submitting}>{submitting ? 'Saving your spot…' : event.price === 'Free' ? 'Confirm my spot' : 'Continue to PhonePe'} {!submitting && <Icon name="arrow_forward" size={18} />}</button></form><small className="modal-note">Your answers are stored securely with this event’s published form version.</small></>}</div></div>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="registration-modal" role="dialog" aria-modal="true" aria-labelledby="registration-title"><button className="modal-close" type="button" onClick={onClose} aria-label="Close registration"><Icon name="close" size={22} /></button>{submitted ? <div className="success-state"><span className="success-icon"><Icon name="check" size={28} /></span><div className="section-kicker">{submitted.paymentRequired ? 'SPOT HELD' : "YOU'RE ON THE LIST"}</div><h2>{submitted.paymentRequired ? 'PAYMENT CHECKOUT READY' : `SEE YOU AT ${event.title.toUpperCase()}`}</h2><p>Your registration code is <strong>{submitted.registration_code || submitted.registrationCode}</strong>. {submitted.paymentRequired ? 'Complete Razorpay checkout to confirm your spot.' : `We’ll send the meetup details to ${identityAnswers(fields, answers).email}.`}</p><button type="button" className="button button-primary" onClick={onClose}>Done <Icon name="arrow_forward" size={18} /></button></div> : <><div className="section-kicker">MARGA EVENT RSVP</div><h2 id="registration-title">JOIN {event.title.toUpperCase()}</h2><p className="modal-intro">A friendly spot is waiting. Add your details and we’ll confirm the meetup by email.</p><div className="modal-event-summary"><span className="modal-day">{event.dayLabel}</span><strong>{event.location}</strong><small>{event.price === 'Free' || event.price === 'Free RSVP' ? 'Free community entry' : `${event.price} per player`}</small></div><form onSubmit={submitRegistration}>{fields.map((field) => <DynamicField key={field.id || field.key} field={field} value={answers[field.key]} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary modal-submit" type="submit" disabled={submitting}>{submitting ? 'Saving your spot…' : event.price === 'Free' ? 'Confirm my spot' : 'Continue to Razorpay'} {!submitting && <Icon name="arrow_forward" size={18} />}</button></form><small className="modal-note">Your answers are stored securely with this event’s published form version.</small></>}</div></div>
 }

@@ -1,8 +1,8 @@
-import { filters } from '../data/mockData'
 import { EventCard } from './EventCard'
 import { Icon } from './Icon'
 
 export function EventsSection({ activeFilter, setActiveFilter, visibleEvents, onRegister }) {
+  const filters = ['All Events', ...new Set(visibleEvents.map((event) => event.category))]
   return (
     <section className="events-section page-container" id="events">
       <div className="section-heading events-heading">

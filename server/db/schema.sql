@@ -19,6 +19,7 @@ CREATE TABLE app_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL,
   display_name text NOT NULL,
+  auth_user_id text UNIQUE,
   phone text,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -26,6 +27,58 @@ CREATE TABLE app_users (
 );
 
 CREATE UNIQUE INDEX app_users_email_lower_idx ON app_users (lower(email));
+
+-- Better Auth's provider/session records are kept separate from the domain user
+-- table above. auth_user_id is the durable bridge used by application queries.
+CREATE TABLE "user" (
+  "id" text NOT NULL PRIMARY KEY,
+  "name" text NOT NULL,
+  "email" text NOT NULL UNIQUE,
+  "emailVerified" boolean NOT NULL,
+  "image" text,
+  "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updatedAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE "session" (
+  "id" text NOT NULL PRIMARY KEY,
+  "expiresAt" timestamptz NOT NULL,
+  "token" text NOT NULL UNIQUE,
+  "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updatedAt" timestamptz NOT NULL,
+  "ipAddress" text,
+  "userAgent" text,
+  "userId" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+);
+
+CREATE TABLE "account" (
+  "id" text NOT NULL PRIMARY KEY,
+  "accountId" text NOT NULL,
+  "providerId" text NOT NULL,
+  "userId" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+  "accessToken" text,
+  "refreshToken" text,
+  "idToken" text,
+  "accessTokenExpiresAt" timestamptz,
+  "refreshTokenExpiresAt" timestamptz,
+  "scope" text,
+  "password" text,
+  "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updatedAt" timestamptz NOT NULL
+);
+
+CREATE TABLE "verification" (
+  "id" text NOT NULL PRIMARY KEY,
+  "identifier" text NOT NULL,
+  "value" text NOT NULL,
+  "expiresAt" timestamptz NOT NULL,
+  "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updatedAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX "session_userId_idx" ON "session" ("userId");
+CREATE INDEX "account_userId_idx" ON "account" ("userId");
+CREATE INDEX "verification_identifier_idx" ON "verification" ("identifier");
 
 CREATE TABLE organization_members (
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -231,7 +284,7 @@ CREATE TABLE registration_items (
 CREATE TABLE payment_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   registration_id uuid NOT NULL UNIQUE REFERENCES registrations(id) ON DELETE RESTRICT,
-  provider text NOT NULL DEFAULT 'phonepe' CHECK (provider IN ('phonepe')),
+  provider text NOT NULL DEFAULT 'razorpay' CHECK (provider IN ('razorpay')),
   merchant_order_id text NOT NULL UNIQUE,
   provider_order_id text,
   amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
@@ -271,7 +324,7 @@ CREATE UNIQUE INDEX payment_attempts_provider_transaction_idx
 -- Webhook processing must be idempotent: never apply the same provider event twice.
 CREATE TABLE payment_webhook_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  provider text NOT NULL DEFAULT 'phonepe',
+  provider text NOT NULL DEFAULT 'razorpay',
   provider_event_id text,
   event_type text,
   payload_hash text NOT NULL UNIQUE,

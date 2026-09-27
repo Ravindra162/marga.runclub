@@ -20,7 +20,7 @@ CROSS JOIN (VALUES
   ('thursday-pickleball', 'Thursday Pickleball', 'pickleball', 'Rookie-friendly sunset dink and play night.', 'FREQ=WEEKLY;BYDAY=TH', 4, '18:30', 120, '{"venue":"City Hub Koramangala"}'),
   ('f1-screening', 'F1 Screening', 'f1_screening', 'Race-calendar-based community screening and social.', NULL, NULL, NULL, 240, '{"venue":"Third Wave Terrace"}')
 ) AS seed(slug, title, category, description, recurrence_rule, default_weekday, default_start_time, default_duration_minutes, default_location)
-ON o.slug = 'marga-run-club'
+WHERE o.slug = 'marga-run-club'
 ON CONFLICT (organization_id, slug) DO NOTHING;
 
 -- A form template is reusable, while each published form version is immutable.

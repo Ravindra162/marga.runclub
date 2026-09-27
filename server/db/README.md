@@ -46,9 +46,9 @@ draft → awaiting_payment → payment_pending → confirmed
 
 Free events can move directly from `awaiting_payment` to `confirmed`. Paid events require a successful verified provider response. The client must never be allowed to mark a registration as paid.
 
-### PhonePe safety and idempotency
+### Razorpay safety and idempotency
 
-- Create PhonePe orders only on the server.
+- Create Razorpay orders only on the server.
 - Store our own unique `merchant_order_id` and `idempotency_key`.
 - Store provider responses for reconciliation, but never store API secrets.
 - Accept a webhook once using `payment_webhook_events.payload_hash` / provider event ID.
