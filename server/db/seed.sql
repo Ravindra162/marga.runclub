@@ -59,10 +59,10 @@ INSERT INTO event_occurrences (
 SELECT
   s.id,
   v.id,
-  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time) AT TIME ZONE o.timezone),
-  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time + make_interval(mins => s.default_duration_minutes)) AT TIME ZONE o.timezone),
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7) + CASE WHEN s.default_weekday = extract(dow FROM current_date)::int THEN 7 ELSE 0 END)::date + s.default_start_time) AT TIME ZONE o.timezone),
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7) + CASE WHEN s.default_weekday = extract(dow FROM current_date)::int THEN 7 ELSE 0 END)::date + s.default_start_time + make_interval(mins => s.default_duration_minutes)) AT TIME ZONE o.timezone),
   now(),
-  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time) AT TIME ZONE o.timezone),
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7) + CASE WHEN s.default_weekday = extract(dow FROM current_date)::int THEN 7 ELSE 0 END)::date + s.default_start_time) AT TIME ZONE o.timezone),
   CASE s.category WHEN 'running' THEN 100 ELSE 24 END,
   'open',
   s.default_location
@@ -75,7 +75,7 @@ WHERE o.slug = 'marga-run-club'
   AND NOT EXISTS (
     SELECT 1 FROM event_occurrences existing
     WHERE existing.event_series_id = s.id
-      AND existing.starts_at::date = current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7)
+      AND existing.starts_at::date = current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7) + CASE WHEN s.default_weekday = extract(dow FROM current_date)::int THEN 7 ELSE 0 END
   );
 
 INSERT INTO event_tickets (occurrence_id, code, name, amount_minor, currency, capacity)

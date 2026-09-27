@@ -264,6 +264,10 @@ CREATE TABLE payment_attempts (
   UNIQUE (payment_order_id, attempt_number)
 );
 
+CREATE UNIQUE INDEX payment_attempts_provider_transaction_idx
+  ON payment_attempts (payment_order_id, provider_transaction_id)
+  WHERE provider_transaction_id IS NOT NULL;
+
 -- Webhook processing must be idempotent: never apply the same provider event twice.
 CREATE TABLE payment_webhook_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

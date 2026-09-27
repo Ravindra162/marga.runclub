@@ -9,7 +9,7 @@ psql "$DATABASE_URL" -f server/db/schema.sql
 psql "$DATABASE_URL" -f server/db/seed.sql
 ```
 
-The current JSON file API remains a development fallback. Once `DATABASE_URL` is configured, the API layer should use these tables instead of `server/data/registrations.json`.
+The API uses these tables whenever `DATABASE_URL` is configured. The server no longer writes registration data to a local JSON file.
 
 ## Why the model is split this way
 

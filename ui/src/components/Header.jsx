@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Icon } from './Icon'
 
-export function Header({ onJoin }) {
+export function Header({ onJoin, onAdmin }) {
   const [open, setOpen] = useState(false)
   const closeMenu = () => setOpen(false)
 
@@ -22,7 +22,7 @@ export function Header({ onJoin }) {
           <a href="#schedule" onClick={closeMenu}>Weekly Schedule</a>
         </nav>
         <div className="header-actions">
-          <button className="login-button" type="button" onClick={() => window.alert('Member login is coming soon. Join an event to get started!')}>Log In</button>
+          <button className="login-button" type="button" onClick={onAdmin}>Organizer</button>
           <button className="button button-primary header-join" type="button" onClick={() => onJoin('all')}>
             Join an Event <Icon name="arrow_forward" size={18} />
           </button>

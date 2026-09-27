@@ -1,6 +1,7 @@
 import { Icon } from './Icon'
 
 export function EventCard({ event, onRegister }) {
+  const actionClass = event.category === 'Running' || event.category === 'Socials' ? 'action-orange' : event.category === 'Pickleball' ? 'action-blue' : 'action-dark'
   return (
     <article className="event-card">
       <div className="event-image-wrap">
@@ -14,7 +15,7 @@ export function EventCard({ event, onRegister }) {
         <p>{event.description}</p>
         <div className="event-footer">
           <div><span>{event.priceLabel}</span><strong className={event.priceClass}>{event.price}</strong></div>
-          <button className={`event-action ${event.id === 'morning-run' || event.id === 'f1-screening' ? 'action-orange' : event.id === 'pickleball' ? 'action-blue' : 'action-dark'}`} type="button" onClick={() => onRegister(event)}>{event.action} <Icon name={event.icon} size={16} /></button>
+           <button className={`event-action ${actionClass}`} type="button" onClick={() => onRegister(event)}>{event.action} <Icon name={event.icon} size={16} /></button>
         </div>
       </div>
     </article>
