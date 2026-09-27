@@ -2,4 +2,5 @@ ui/node_modules/
 ui/dist/
 server/node_modules/
 .env
+server/.env
 .DS_Store

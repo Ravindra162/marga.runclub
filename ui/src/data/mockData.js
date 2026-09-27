@@ -1,6 +1,6 @@
 export const events = [
   {
-    id: 'morning-run',
+    id: 'sunday-morning-run',
     category: 'Running',
     dayLabel: 'SUN 06:30 AM',
     title: 'Sunday Sunrise 5K & Social Walk',
@@ -18,7 +18,7 @@ export const events = [
     tag: 'RUNNING • ALL PACES',
   },
   {
-    id: 'badminton',
+    id: 'tuesday-badminton',
     category: 'Badminton',
     dayLabel: 'TUE 07:30 PM',
     title: 'Tuesday Doubles Rally & Drill',
@@ -36,7 +36,7 @@ export const events = [
     tag: 'BADMINTON • RECREATIONAL',
   },
   {
-    id: 'pickleball',
+    id: 'thursday-pickleball',
     category: 'Pickleball',
     dayLabel: 'THU 06:30 PM',
     title: 'Sunset Dink & Play Night',

@@ -17,6 +17,15 @@ Install frontend dependencies once:
 npm --prefix ui install
 ```
 
+Install server dependencies and configure PostgreSQL:
+
+```bash
+npm --prefix server install
+cp server/.env.example server/.env
+# Edit server/.env and set DATABASE_URL
+npm --prefix server run db:setup
+```
+
 Start the API:
 
 ```bash
@@ -31,14 +40,15 @@ npm run dev:ui
 
 Open `http://localhost:5173`.
 
-The UI proxies `/api` requests to the server on port `8787`. Registrations are stored locally in `server/data/registrations.json` during development. The production database design is in `server/db/schema.sql` and is PostgreSQL/Supabase-compatible.
+The UI proxies `/api` requests to the server on port `8787`. Registrations are stored in PostgreSQL. The database design is in `server/db/schema.sql` and is PostgreSQL/Supabase-compatible.
 
 ## API
 
 - `GET /api/health` — health check
-- `POST /api/registrations` — create a registration with `eventId`, `name`, and `email`
+- `GET /api/events` — list open event occurrences and ticket prices
+- `POST /api/registrations` — create a registration with `eventId`, `name`, `email`, and optional `answers`
 
-The registration status starts as `pending`. PhonePe order creation and webhook verification should be added to the server only; gateway credentials must never be exposed in the UI.
+Free registrations become `confirmed`. Paid registrations become `awaiting_payment` and will be connected to PhonePe in the next step. PhonePe order creation and webhook verification must stay on the server; gateway credentials must never be exposed in the UI.
 
 ## Database design
 

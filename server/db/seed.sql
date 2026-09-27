@@ -49,3 +49,43 @@ CROSS JOIN (VALUES
 ) AS f(field_key, field_type, label, is_required, position, config_json)
 WHERE v.version_number = 1
   AND NOT EXISTS (SELECT 1 FROM form_fields existing WHERE existing.form_version_id = v.id);
+
+-- Create the next open occurrence for the three weekly activities. F1 occurrences are
+-- created by an organizer after the race calendar and venue are confirmed.
+INSERT INTO event_occurrences (
+  event_series_id, form_version_id, starts_at, ends_at,
+  registration_opens_at, registration_closes_at, capacity, status, location
+)
+SELECT
+  s.id,
+  v.id,
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time) AT TIME ZONE o.timezone),
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time + make_interval(mins => s.default_duration_minutes)) AT TIME ZONE o.timezone),
+  now(),
+  (((current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7))::date + s.default_start_time) AT TIME ZONE o.timezone),
+  CASE s.category WHEN 'running' THEN 100 ELSE 24 END,
+  'open',
+  s.default_location
+FROM event_series s
+JOIN organizations o ON o.id = s.organization_id
+JOIN form_versions v ON v.status = 'published'
+WHERE o.slug = 'marga-run-club'
+  AND s.default_weekday IS NOT NULL
+  AND v.form_template_id IN (SELECT id FROM form_templates WHERE organization_id = o.id)
+  AND NOT EXISTS (
+    SELECT 1 FROM event_occurrences existing
+    WHERE existing.event_series_id = s.id
+      AND existing.starts_at::date = current_date + ((s.default_weekday - extract(dow FROM current_date)::int + 7) % 7)
+  );
+
+INSERT INTO event_tickets (occurrence_id, code, name, amount_minor, currency, capacity)
+SELECT o.id,
+       CASE s.category WHEN 'running' THEN 'free-entry' ELSE 'standard' END,
+       CASE s.category WHEN 'running' THEN 'Community entry' WHEN 'badminton' THEN 'Badminton court share' ELSE 'Pickleball player slot' END,
+       CASE s.category WHEN 'running' THEN 0 WHEN 'badminton' THEN 25000 ELSE 35000 END,
+       'INR',
+       o.capacity
+FROM event_occurrences o
+JOIN event_series s ON s.id = o.event_series_id
+WHERE o.status = 'open'
+  AND NOT EXISTS (SELECT 1 FROM event_tickets existing WHERE existing.occurrence_id = o.id);
