@@ -1,0 +1,5 @@
+ui/node_modules/
+ui/dist/
+server/node_modules/
+.env
+.DS_Store

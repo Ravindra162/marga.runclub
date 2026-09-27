@@ -1,0 +1,13 @@
+{
+  "name": "marga-run-club",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run dev:server & npm run dev:ui",
+    "dev:ui": "npm --prefix ui run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build": "npm --prefix ui run build",
+    "start": "npm --prefix server run start"
+  }
+}
