@@ -125,7 +125,7 @@ async function createRegistration(body, request) {
     const occurrence = occurrenceResult.rows[0]
 
     if (occurrence.capacity) {
-      const countResult = await client.query(`SELECT count(*)::int AS count FROM registrations WHERE occurrence_id = $1 AND status IN ('awaiting_payment', 'payment_pending', 'confirmed')`, [occurrence.id])
+      const countResult = await client.query(`SELECT count(*)::int AS count FROM registrations WHERE occurrence_id = $1 AND status = 'confirmed'`, [occurrence.id])
       if (countResult.rows[0].count >= occurrence.capacity) throw httpError('This event is full. Please contact the organizers for a waitlist spot.', 409)
     }
     if (!occurrence.form_version_id) throw httpError('This event form is not configured yet.', 503)
@@ -251,9 +251,41 @@ async function applyPaymentStatus(providerPayload) {
       WHERE payment_order_id = $1
         AND NOT EXISTS (SELECT 1 FROM payment_attempts existing WHERE existing.payment_order_id = $1 AND existing.provider_transaction_id = $4 AND $4 IS NOT NULL)
     `, [payment.id, providerState === 'COMPLETED' ? 'success' : providerState === 'FAILED' ? 'failed' : 'pending', latest.method || null, latest.id || null, latest.error_code || null, JSON.stringify(latest)])
-    if (status === 'paid') await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
+    let registrationStatus = null
+    let requiresRefund = false
+    if (status === 'paid') {
+      const registration = await client.query(`
+        SELECT r.id, r.occurrence_id, o.capacity
+        FROM registrations r
+        JOIN event_occurrences o ON o.id = r.occurrence_id
+        WHERE r.id = $1
+        FOR UPDATE OF r, o
+      `, [payment.registration_id])
+      if (!registration.rowCount) throw httpError('Registration not found while confirming payment.', 404)
+      const row = registration.rows[0]
+      if (row.capacity) {
+        const confirmed = await client.query(`SELECT count(*)::int AS count FROM registrations WHERE occurrence_id = $1 AND status = 'confirmed' AND id <> $2`, [row.occurrence_id, row.id])
+        if (confirmed.rows[0].count >= row.capacity) {
+          await client.query(`UPDATE registrations SET status = 'expired', updated_at = now() WHERE id = $1`, [row.id])
+          registrationStatus = 'expired'
+          requiresRefund = true
+        } else {
+          registrationStatus = 'confirmed'
+          await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
+        }
+      } else {
+        registrationStatus = 'confirmed'
+        await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
+      }
+    }
     if (status === 'failed') await client.query(`UPDATE registrations SET status = 'awaiting_payment', updated_at = now() WHERE id = $1 AND status = 'payment_pending'`, [payment.registration_id])
-    return { merchantOrderId: payment.merchant_order_id, status }
+    return {
+      merchantOrderId: payment.merchant_order_id,
+      status,
+      registrationStatus,
+      requiresRefund,
+      message: requiresRefund ? 'Payment succeeded, but this event became full before confirmation. Please contact the organizers for a refund.' : undefined,
+    }
   })
 }
 
@@ -274,7 +306,7 @@ async function verifyRazorpayPayment(body) {
      if (order.state !== 'COMPLETED') throw httpError('Razorpay payment is still being captured. Please wait a moment and try again.', 409)
    }
   const applied = await applyPaymentStatus({ providerOrderId: razorpayOrderId, state: 'COMPLETED', amount: payment.amount, payment })
-  return { payment: applied, registration: { registrationCode: row.registration_code, status: 'confirmed' } }
+   return { payment: applied, registration: { registrationCode: row.registration_code, status: applied.registrationStatus || 'confirmed' } }
 }
 
 async function getMemberDashboard(request) {

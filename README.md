@@ -43,6 +43,8 @@ npm run dev:ui
 
 Open `http://localhost:5173`.
 
+The organizer console is available at `http://localhost:5173/admin` locally or `/admin` on the deployed site. It is intentionally not linked from the public header.
+
 The UI proxies `/api` requests to the server on port `8787`. Registrations are stored in PostgreSQL. The database design is in `server/db/schema.sql` and is PostgreSQL/Supabase-compatible.
 
 ## Deploy to Vercel

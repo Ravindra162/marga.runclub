@@ -45,7 +45,8 @@ async function verifyOrReconcilePayment({ registrationCode, payment, checkoutRes
 
     const statusResponse = await fetch(`/api/payments/${encodeURIComponent(payment.merchantOrderId)}/status`)
     const statusResult = await statusResponse.json()
-    if (statusResponse.ok && statusResult.payment?.status === 'paid') return { registration: { registrationCode, status: 'confirmed' }, payment: statusResult.payment }
+    if (statusResponse.ok && statusResult.payment?.registrationStatus === 'expired') throw new Error(statusResult.payment.message || 'Payment succeeded, but the event became full. Please contact the organizers for a refund.')
+    if (statusResponse.ok && statusResult.payment?.status === 'paid') return { registration: { registrationCode, status: statusResult.payment.registrationStatus || 'confirmed' }, payment: statusResult.payment }
     if (attempt < 3) await wait(1000 * (attempt + 1))
   }
   throw lastError
@@ -111,16 +112,17 @@ export function RegistrationModal({ event, onClose }) {
               try {
                 const registrationCode = result.registration.registration_code || result.registration.registrationCode
                 const verifyResult = await verifyOrReconcilePayment({ registrationCode, payment, checkoutResult })
+                if (verifyResult.registration?.status !== 'confirmed') throw new Error(verifyResult.payment?.message || 'Payment succeeded, but your registration could not be confirmed. Please contact the organizers.')
                 result.registration = { ...result.registration, ...verifyResult.registration, paymentRequired: false, paymentStatus: 'paid' }
                 resolve()
               } catch (verificationError) { reject(verificationError) }
             },
-            modal: { ondismiss: () => reject(new Error('Payment was cancelled. Your spot is still held while payment remains pending.')) },
+             modal: { ondismiss: () => reject(new Error('Payment was cancelled. No slot was booked. You can try again anytime.')) },
           })
           checkout.open()
         })
       }
-      setSubmitted(result.registration)
+       setSubmitted(result.registration)
     } catch (submitError) { setError(submitError.message || 'Unable to register right now.') } finally { setSubmitting(false) }
   }
 

@@ -1,11 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Material+Symbols+Outlined:FILL@0..1&display=swap');
 
 :root { font-family: 'Plus Jakarta Sans', sans-serif; color: #1b1b1e; background: #fbf8fc; font-synthesis: none; text-rendering: optimizeLegibility; --canvas: #fbf8fc; --paper: #ffffff; --paper-soft: #f6f2f7; --ink: #1b1b1e; --muted: #59413b; --line: #e1bfb6; --orange: #ab2f05; --orange-bright: #e4572e; --blue: #1d4ed8; --lime: #84cc16; }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; user-select: none; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
 body.modal-open { overflow: hidden; }
 button, input { font: inherit; }
+input, textarea, select, [contenteditable="true"], code, .member-registration-details strong { user-select: text; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
@@ -23,6 +24,8 @@ a { color: inherit; text-decoration: none; }
 .main-nav a, .login-button { border: 0; border-bottom: 2px solid transparent; padding: 8px 0; color: var(--muted); background: none; font-size: 12px; font-weight: 700; transition: color .2s, border-color .2s; }
 .main-nav a:hover, .main-nav a.active { color: var(--orange); border-color: var(--orange); }
 .login-button:hover { color: var(--orange); }
+.login-button { display: inline-flex; align-items: center; gap: 7px; }
+.google-mark { width: 16px; height: 16px; flex: 0 0 auto; }
 .member-login-button { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-actions { display: flex; align-items: center; gap: 17px; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 43px; padding: 0 20px; border: 0; border-radius: 7px; font-size: 12px; font-weight: 700; transition: transform .2s, background .2s, box-shadow .2s; }

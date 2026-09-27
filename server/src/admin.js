@@ -20,7 +20,7 @@ export async function adminOverview(pool) {
               o.form_version_id AS "formVersionId", fv.version_number AS "formVersionNumber",
               ft.name AS "formName", et.name AS "ticketName", et.description AS "ticketDescription",
               COALESCE(et.amount_minor, 0)::bigint AS "amountMinor", COALESCE(et.currency, 'INR') AS currency,
-             o.capacity, o.location, COUNT(r.id)::int AS "registrationCount",
+              o.capacity, o.location, COUNT(r.id) FILTER (WHERE r.status = 'confirmed')::int AS "registrationCount",
              COUNT(r.id) FILTER (WHERE r.status = 'confirmed')::int AS "confirmedCount",
              COALESCE(SUM(r.total_amount_minor) FILTER (WHERE r.status = 'confirmed'), 0)::bigint AS "confirmedRevenueMinor"
        FROM event_occurrences o

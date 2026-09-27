@@ -133,7 +133,7 @@ https://marga-run-club.vercel.app/api/payments/webhook
 
 ## Organizer dashboard
 
-Open the public site, click **Organizer**, and enter the configured `ADMIN_API_KEY`.
+Open `/admin` on the site and enter the configured `ADMIN_API_KEY`.
 
 The dashboard is split into four views:
 
