@@ -21,7 +21,7 @@ https://marga-run-club.vercel.app
 Latest production deployment at the time of this snapshot:
 
 ```text
-https://marga-run-club-hfq2z8pke-ravindras-projects-e3517ca0.vercel.app
+https://marga-run-club-3hyezex18-ravindras-projects-e3517ca0.vercel.app
 ```
 
 The production alias is the important URL; the deployment-specific URL is included only for traceability.
@@ -45,8 +45,15 @@ The application is deployed and operational. The latest completed work addressed
 - Vercel deployment through one serverless API function
 - Better Auth Google sign-in with Neon-backed sessions
 - Member dashboard for authenticated users' registrations and payment state
+- Google G logo on the public sign-in control
+- Public header no longer exposes the Organizer link
+- Organizer console moved to `/admin`
+- Only confirmed registrations consume event capacity
+- Failed/cancelled/pending payments do not consume event capacity
+- Atomic capacity check during successful payment confirmation
+- Global text selection disabled except in inputs, textareas, selects, and registration codes
 
-The active feature is Google sign-in/sign-up and a member registration dashboard. Organizer access still uses the existing `ADMIN_API_KEY` gate and has not yet migrated to organization-role authorization.
+Google sign-in and the member registration dashboard are implemented and deployed. Organizer access still uses the existing `ADMIN_API_KEY` gate and has not yet migrated to organization-role authorization.
 
 ## Architecture
 
@@ -235,7 +242,7 @@ Razorpay Checkout in browser
 POST /api/payments/verify
   validates HMAC signature
   validates Razorpay payment/order/amount
-  confirms the registration
+  confirms the registration only if confirmed capacity remains
 
 GET /api/payments/:merchantOrderId/status
   retrieves Razorpay order state
@@ -253,11 +260,16 @@ The latest payment fix added:
 - Browser verification retries several times after Checkout success.
 - Browser verification falls back to the order-status endpoint if capture propagation is delayed.
 - Payment verification checks order ID and amount before accepting capture status.
+- Pending registrations are not included in capacity counts.
+- Only `confirmed` registrations count toward event capacity.
+- Successful payment confirmation locks the occurrence and rechecks capacity atomically.
+- If an event fills before a captured payment can be confirmed, the registration is marked `expired` and the response instructs organizers to handle the refund.
 
 Payment statuses:
 
 ```text
 Registration: awaiting_payment → payment_pending → confirmed
+                         └──────────────→ awaiting_payment/expired when payment fails or capacity is unavailable
 Payment order: created/pending → paid
 ```
 
@@ -339,14 +351,23 @@ After deployment, verify:
 
 1. `/api/health` returns healthy JSON.
 2. The public event list loads.
-3. Organizer access returns the overview with the configured key.
-4. A paid Test Mode registration reaches Razorpay Checkout.
-5. A successful payment becomes `confirmed` after verification/reconciliation.
-6. Razorpay webhook delivery is configured for the production URL.
+3. Google sign-in returns a Google authorization redirect.
+4. `/admin` loads the organizer access screen and the public header does not show Organizer.
+5. Organizer access returns the overview with the configured key.
+6. A paid Test Mode registration reaches Razorpay Checkout.
+7. A successful payment becomes `confirmed` after verification/reconciliation.
+8. Razorpay webhook delivery is configured for the production URL.
 
 ## Current worktree state
 
-The worktree contains uncommitted and unpushed changes. This is intentional for this handoff. Do not reset or discard them.
+The worktree is clean after the latest documentation commit. The latest pushed commits are:
+
+```text
+51461ea Fix payment capacity and simplify public navigation
+c2ceb62 Add Google member authentication dashboard
+```
+
+The production alias is deployed from the latest code. Do not reset or discard future user changes.
 
 The current change set includes the original event/forms/Razorpay/Vercel work plus the latest organizer dashboard and payment reconciliation work. There is no requirement to commit or push this snapshot.
 
