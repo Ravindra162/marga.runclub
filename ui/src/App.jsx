@@ -23,6 +23,7 @@ function App() {
   const [events, setEvents] = useState([])
   const [memberOpen, setMemberOpen] = useState(false)
   const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
   const eventsRef = useRef(null)
   useEffect(() => {
     fetch('/api/events')
@@ -43,6 +44,7 @@ function App() {
         })))
       })
       .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
   useEffect(() => {
     fetch('/api/me', { credentials: 'include' }).then((response) => response.json()).then((result) => setUser(result.user || null)).catch(() => {})
@@ -73,7 +75,8 @@ function App() {
   if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) return <AdminDashboard onClose={() => window.location.assign('/')} />
   if (eventPathId && detailEvent) return <EventDetailPage event={detailEvent} onBack={() => window.location.assign('/#events')} user={user} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} />
   if (eventPathId && events.length) return <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main className="event-detail-page page-container"><p className="event-detail-loading">That event could not be found.</p><button className="button button-primary" type="button" onClick={() => window.location.assign('/#events')}>Back to events</button></main></div>
-  return memberOpen ? <MemberDashboard user={user} onClose={() => setMemberOpen(false)} onSignOut={signOut} /> : <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main><Marquee /><div ref={eventsRef}><EventsSection activeFilter={activeFilter} setActiveFilter={setActiveFilter} visibleEvents={visibleEvents} onRegister={setSelectedEvent} onOpenEvent={openEventDetail} /></div><CommunitySection /><section className="closing-section page-container" id="schedule"><div className="closing-card"><div className="closing-grid"><div><div className="closing-kicker">⌁ NEXT MEET: THIS SUNDAY 6:30 AM</div><h2>READY TO TAKE YOUR FIRST STRIDE?</h2><p>Join 1,800+ members this week. No auditions, no memberships required—just show up in your sneakers.</p></div><div className="closing-actions"><button type="button" className="button button-primary button-large" onClick={scrollToEvents}>See all events <span>→</span></button><a className="button button-light" href="https://wa.me/919999999999" target="_blank" rel="noreferrer">♧ WhatsApp Community</a></div></div><div className="closing-bottom"><span>Instant RSVP via Razorpay / UPI</span><b>#RUNMARGA • NO STRANGERS HERE</b></div></div></section></main><Footer />{selectedEvent && <RegistrationModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}</div>
+  if (loading && !eventPathId) return <div className="app-shell loading-shell"><div className="running-loader" aria-label="Loading Marga Run Club"><span>🏃</span></div><p>Getting the next meetup ready…</p></div>
+  return memberOpen ? <MemberDashboard user={user} onClose={() => setMemberOpen(false)} onSignOut={signOut} /> : <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main><Marquee /><div ref={eventsRef}><EventsSection activeFilter={activeFilter} setActiveFilter={setActiveFilter} visibleEvents={visibleEvents} onRegister={setSelectedEvent} onOpenEvent={openEventDetail} /></div><CommunitySection /><section className="closing-section page-container" id="schedule"><div className="closing-card"><div className="closing-grid"><div><div className="closing-kicker">⌁ NEXT MEET: THIS SUNDAY 6:30 AM</div><h2>READY TO TAKE YOUR FIRST STRIDE?</h2><p>Join 1,800+ members this week. No auditions, no memberships required—just show up in your sneakers.</p></div><div className="closing-actions"><button type="button" className="button button-primary button-large" onClick={scrollToEvents}>See all events <span>→</span></button><a className="button button-light" href="https://wa.me/919999999999" target="_blank" rel="noreferrer">♧ WhatsApp Community</a></div></div><div className="closing-bottom"><span>Instant RSVP via Razorpay / UPI</span><b>#RUNMARGA • NO STRANGERS HERE</b></div></div></section></main><Footer />{selectedEvent && <RegistrationModal event={selectedEvent} user={user} onClose={() => setSelectedEvent(null)} />}</div>
 }
 
 export default App
