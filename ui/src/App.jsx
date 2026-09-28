@@ -3,11 +3,11 @@ import { CommunitySection } from './components/CommunitySection'
 import { EventsSection } from './components/EventsSection'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
-import { Hero } from './components/Hero'
 import { Marquee } from './components/Marquee'
 import { RegistrationModal } from './components/RegistrationModal'
 import { AdminDashboard } from './components/AdminDashboard'
 import { MemberDashboard } from './components/MemberDashboard'
+import { EventDetailPage } from './components/EventDetailPage'
 
 function App() {
   const [activeFilter, setActiveFilter] = useState('All Events')
@@ -53,7 +53,18 @@ function App() {
     setMemberOpen(false)
   }
 
-  return window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/') ? <AdminDashboard onClose={() => window.location.assign('/')} /> : memberOpen ? <MemberDashboard user={user} onClose={() => setMemberOpen(false)} onSignOut={signOut} /> : <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main><Hero onExplore={scrollToEvents} /><Marquee /><div ref={eventsRef}><EventsSection activeFilter={activeFilter} setActiveFilter={setActiveFilter} visibleEvents={visibleEvents} onRegister={setSelectedEvent} /></div><CommunitySection /><section className="closing-section page-container" id="schedule"><div className="closing-card"><div className="closing-grid"><div><div className="closing-kicker">⌁ NEXT MEET: THIS SUNDAY 6:30 AM</div><h2>READY TO TAKE YOUR FIRST STRIDE?</h2><p>Join 1,800+ members this week. No auditions, no memberships required—just show up in your sneakers.</p></div><div className="closing-actions"><button type="button" className="button button-primary button-large" onClick={scrollToEvents}>See all events <span>→</span></button><a className="button button-light" href="https://wa.me/919999999999" target="_blank" rel="noreferrer">♧ WhatsApp Community</a></div></div><div className="closing-bottom"><span>Instant RSVP via Razorpay / UPI</span><b>#RUNMARGA • NO STRANGERS HERE</b></div></div></section></main><Footer />{selectedEvent && <RegistrationModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}</div>
+  const eventPathMatch = window.location.pathname.match(/^\/events\/([^/]+)\/?$/)
+  const eventPathId = eventPathMatch ? decodeURIComponent(eventPathMatch[1]) : null
+  const detailEvent = eventPathId ? events.find((event) => event.occurrenceId === eventPathId || event.id === eventPathId) : null
+  const openEventDetail = (clickEvent, event) => {
+    if (clickEvent) clickEvent.preventDefault()
+    window.location.assign(`/events/${encodeURIComponent(event.occurrenceId || event.id)}`)
+  }
+
+  if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) return <AdminDashboard onClose={() => window.location.assign('/')} />
+  if (eventPathId && detailEvent) return <EventDetailPage event={detailEvent} onBack={() => window.location.assign('/#events')} user={user} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} />
+  if (eventPathId && events.length) return <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main className="event-detail-page page-container"><p className="event-detail-loading">That event could not be found.</p><button className="button button-primary" type="button" onClick={() => window.location.assign('/#events')}>Back to events</button></main></div>
+  return memberOpen ? <MemberDashboard user={user} onClose={() => setMemberOpen(false)} onSignOut={signOut} /> : <div className="app-shell"><Header user={user} onJoin={openEvent} onSignIn={signIn} onSignOut={signOut} onAccount={() => setMemberOpen(true)} /><main><Marquee /><div ref={eventsRef}><EventsSection activeFilter={activeFilter} setActiveFilter={setActiveFilter} visibleEvents={visibleEvents} onRegister={setSelectedEvent} onOpenEvent={openEventDetail} /></div><CommunitySection /><section className="closing-section page-container" id="schedule"><div className="closing-card"><div className="closing-grid"><div><div className="closing-kicker">⌁ NEXT MEET: THIS SUNDAY 6:30 AM</div><h2>READY TO TAKE YOUR FIRST STRIDE?</h2><p>Join 1,800+ members this week. No auditions, no memberships required—just show up in your sneakers.</p></div><div className="closing-actions"><button type="button" className="button button-primary button-large" onClick={scrollToEvents}>See all events <span>→</span></button><a className="button button-light" href="https://wa.me/919999999999" target="_blank" rel="noreferrer">♧ WhatsApp Community</a></div></div><div className="closing-bottom"><span>Instant RSVP via Razorpay / UPI</span><b>#RUNMARGA • NO STRANGERS HERE</b></div></div></section></main><Footer />{selectedEvent && <RegistrationModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}</div>
 }
 
 export default App

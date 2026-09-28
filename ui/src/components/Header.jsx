@@ -20,10 +20,7 @@ export function Header({ onJoin, user, onSignIn, onSignOut, onAccount }) {
           </span>
         </a>
         <nav className={`main-nav ${open ? 'is-open' : ''}`} aria-label="Primary navigation">
-          <a className="active" href="#events" onClick={closeMenu}>Events</a>
-          <a href="#community" onClick={closeMenu}>Community</a>
-          <a href="#about" onClick={closeMenu}>About</a>
-          <a href="#schedule" onClick={closeMenu}>Weekly Schedule</a>
+          <a className="active" href="/#events" onClick={closeMenu}>Events</a>
         </nav>
         <div className="header-actions">
           {user ? <button className="login-button member-login-button" type="button" onClick={onAccount} title={user.email}>{user.name || 'My account'}</button> : <button className="login-button member-login-button" type="button" onClick={onSignIn}><GoogleMark /> Sign in with Google</button>}

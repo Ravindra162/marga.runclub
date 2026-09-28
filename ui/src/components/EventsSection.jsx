@@ -1,7 +1,7 @@
 import { EventCard } from './EventCard'
 import { Icon } from './Icon'
 
-export function EventsSection({ activeFilter, setActiveFilter, visibleEvents, onRegister }) {
+export function EventsSection({ activeFilter, setActiveFilter, visibleEvents, onRegister, onOpenEvent }) {
   const filters = ['All Events', ...new Set(visibleEvents.map((event) => event.category))]
   return (
     <section className="events-section page-container" id="events">
@@ -11,7 +11,7 @@ export function EventsSection({ activeFilter, setActiveFilter, visibleEvents, on
           {filters.map((filter) => <button key={filter} type="button" className={activeFilter === filter ? 'filter-chip active' : 'filter-chip'} onClick={() => setActiveFilter(filter)}>{filter}</button>)}
         </div>
       </div>
-      <div className="events-grid">{visibleEvents.map((event) => <EventCard key={event.id} event={event} onRegister={onRegister} />)}</div>
+       <div className="events-grid">{visibleEvents.map((event) => <EventCard key={event.id} event={event} onRegister={onRegister} onOpen={onOpenEvent} />)}</div>
       {visibleEvents.length === 0 && <div className="empty-events">No events in this category yet. Try another filter.</div>}
     </section>
   )
