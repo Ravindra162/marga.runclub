@@ -147,6 +147,7 @@ async function createRegistration(body, request) {
     if (attendees.length !== quantity - 1) throw httpError('Please provide details for every additional attendee.')
     for (const attendee of attendees) {
       if (String(attendee?.name || '').trim().length < 2) throw httpError('Each additional attendee needs a valid name.')
+      if (attendee?.email && !String(attendee.email).includes('@')) throw httpError('Each additional attendee email must be valid when provided.')
     }
     for (const field of fields.rows) {
       const value = answers[field.field_key]
@@ -162,6 +163,7 @@ async function createRegistration(body, request) {
       RETURNING id
     `, [organizationId, name, email, phone])
     const participantId = participantResult.rows[0].id
+    if (session?.user?.id) await client.query(`UPDATE app_users SET phone = COALESCE($1, phone), updated_at = now() WHERE auth_user_id = $2`, [phone, session.user.id])
     const existing = await client.query(`SELECT registration_code, status FROM registrations WHERE occurrence_id = $1 AND participant_id = $2 AND status NOT IN ('cancelled', 'expired', 'refunded') LIMIT 1`, [occurrence.id, participantId])
     if (existing.rowCount) throw Object.assign(httpError(`You already have a ${existing.rows[0].status.replace('_', ' ')} registration for this event.`, 409), { registration: existing.rows[0] })
     const submissionId = randomUUID()
@@ -401,7 +403,8 @@ async function updateCurrentUser(body, request) {
   const phone = String(body.phone || '').trim()
   if (name.length < 2) throw httpError('Please provide a valid name.')
   if (!phone) throw httpError('Please provide your mobile number.')
-  await pool.query(`UPDATE app_users SET display_name = $1, phone = $2, updated_at = now() WHERE auth_user_id = $3`, [name, phone, session.user.id])
+  const updateResult = await pool.query(`UPDATE app_users SET display_name = $1, phone = $2, updated_at = now() WHERE auth_user_id = $3`, [name, phone, session.user.id])
+  if (!updateResult.rowCount) throw httpError('Your member profile is not ready yet. Please sign out and sign in again.', 409)
   return { user: await getCurrentUser(request) }
 }
 

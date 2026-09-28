@@ -47,7 +47,7 @@ async function syncAppUser(user) {
   await pool.query(`
     INSERT INTO app_users (email, display_name, auth_user_id)
     VALUES ($1, $2, $3)
-    ON CONFLICT (lower(email)) DO UPDATE SET display_name = EXCLUDED.display_name, auth_user_id = EXCLUDED.auth_user_id, updated_at = now()
+    ON CONFLICT (lower(email)) DO UPDATE SET auth_user_id = EXCLUDED.auth_user_id, updated_at = now()
   `, [user.email.toLowerCase(), user.name || user.email, user.id])
 }
 

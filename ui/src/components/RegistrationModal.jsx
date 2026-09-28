@@ -71,7 +71,6 @@ export function RegistrationModal({ event, onClose, user }) {
   const [form, setForm] = useState(null)
   const [answers, setAnswers] = useState({ full_name: user?.name || '', email: user?.email || '', phone: '', ticket_quantity: 1 })
   const [quantity, setQuantity] = useState(1)
-  const [attendees, setAttendees] = useState([])
   const [submitted, setSubmitted] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -81,7 +80,20 @@ export function RegistrationModal({ event, onClose, user }) {
     document.addEventListener('keydown', onKeyDown)
     document.body.classList.add('modal-open')
     const occurrenceId = event.occurrenceId || event.id
-    fetch(`/api/events/${encodeURIComponent(occurrenceId)}/form`).then((response) => response.json()).then((result) => { setForm(result.form); setAnswers((current) => ({ ...current, full_name: user?.name || current.full_name, email: user?.email || current.email, phone: user?.phone || current.phone })) }).catch(() => setForm(null))
+    fetch(`/api/events/${encodeURIComponent(occurrenceId)}/form`).then((response) => response.json()).then((result) => {
+      const eventForm = result.form
+      setForm(eventForm)
+      setAnswers((current) => {
+        const next = { ...current, full_name: user?.name || current.full_name, email: user?.email || current.email, phone: user?.phone || current.phone }
+        for (const field of eventForm?.fields || []) {
+          const text = `${field.key} ${field.label}`
+          if ((field.type === 'email' || /email/i.test(text)) && user?.email) next[field.key] = user.email
+          if ((field.type === 'phone' || /mobile|phone|whatsapp|contact.?number/i.test(text)) && user?.phone) next[field.key] = user.phone
+          if (/full.?name|your.?name|participant.?name|\bname\b/i.test(text) && !/emergency/i.test(text) && user?.name) next[field.key] = user.name
+        }
+        return next
+      })
+    }).catch(() => setForm(null))
     return () => { document.removeEventListener('keydown', onKeyDown); document.body.classList.remove('modal-open') }
   }, [event.id, onClose, user?.email, user?.name, user?.phone])
 
@@ -89,7 +101,6 @@ export function RegistrationModal({ event, onClose, user }) {
     const nextQuantity = Math.max(1, Math.min(10, Number(value) || 1))
     setQuantity(nextQuantity)
     setAnswers((current) => ({ ...current, ticket_quantity: nextQuantity }))
-    setAttendees((current) => Array.from({ length: nextQuantity - 1 }, (_, index) => current[index] || { name: '', email: '', phone: '' }))
   }
 
   async function submitRegistration(e) {
