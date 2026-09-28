@@ -85,8 +85,9 @@ a { color: inherit; text-decoration: none; }
 .filter-chip:hover { background: #eae7eb; }
 .filter-chip.active { color: #fff; background: var(--ink); }
 .events-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 23px; padding-top: 28px; }
-.event-card { display: flex; flex-direction: column; overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: #fff; transition: transform .25s, box-shadow .25s; }
+.event-card { display: flex; flex-direction: column; overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 7px; background: #fff; cursor: pointer; transition: transform .25s, box-shadow .25s; }
 .event-card:hover { transform: translateY(-5px); box-shadow: 0 13px 22px rgba(27,27,30,.12); }
+.event-card:focus-visible { outline: 3px solid var(--lime); outline-offset: 3px; }
 .event-image-wrap { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #eae7eb; }
 .event-poster-link { display: block; color: inherit; cursor: pointer; }
 .event-poster-link:focus-visible { outline: 3px solid var(--lime); outline-offset: -3px; }

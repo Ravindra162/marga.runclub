@@ -9,6 +9,14 @@ import { AdminDashboard } from './components/AdminDashboard'
 import { MemberDashboard } from './components/MemberDashboard'
 import { EventDetailPage } from './components/EventDetailPage'
 
+const fallbackEventImages = {
+  Running: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=85',
+  Badminton: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=1200&q=85',
+  Pickleball: 'https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&w=1200&q=85',
+  Socials: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=85',
+  Fitness: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1200&q=85',
+}
+
 function App() {
   const [activeFilter, setActiveFilter] = useState('All Events')
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -21,8 +29,9 @@ function App() {
       .then((response) => response.json())
       .then((result) => {
         setEvents((result.events || []).map((event) => ({
-          ...event,
-          id: event.occurrenceId,
+           ...event,
+           id: event.occurrenceId,
+           image: event.image || fallbackEventImages[event.category] || fallbackEventImages.Running,
           location: event.location?.venue || event.location?.address || 'Location to be announced',
           dayLabel: new Date(event.startsAt).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase(),
           detail: event.tickets?.[0]?.name || 'Community meetup',
