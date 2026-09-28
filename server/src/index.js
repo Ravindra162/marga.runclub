@@ -143,9 +143,10 @@ async function createRegistration(body, request) {
     const email = identity.email
     const phone = identity.phone
     if (name.length < 2 || !email.includes('@')) throw httpError('Please provide a valid name and email address.')
+    if (!phone) throw httpError('Please provide your mobile number.')
     if (attendees.length !== quantity - 1) throw httpError('Please provide details for every additional attendee.')
     for (const attendee of attendees) {
-      if (String(attendee?.name || '').trim().length < 2 || !String(attendee?.email || '').includes('@')) throw httpError('Each additional attendee needs a valid name and email address.')
+      if (String(attendee?.name || '').trim().length < 2) throw httpError('Each additional attendee needs a valid name.')
     }
     for (const field of fields.rows) {
       const value = answers[field.field_key]
@@ -382,7 +383,26 @@ async function getMemberDashboard(request) {
     GROUP BY r.id, s.title, o.starts_at, o.ends_at, o.location, po.status
     ORDER BY o.starts_at DESC, r.created_at DESC
   `, [session.user.id])
-  return { user: { id: session.user.id, name: session.user.name, email: session.user.email, image: session.user.image }, registrations: result.rows }
+  const profile = await pool.query(`SELECT display_name AS name, email, phone FROM app_users WHERE auth_user_id = $1 LIMIT 1`, [session.user.id])
+  return { user: { id: session.user.id, name: profile.rows[0]?.name || session.user.name, email: session.user.email, phone: profile.rows[0]?.phone || null, image: session.user.image }, registrations: result.rows }
+}
+
+async function getCurrentUser(request) {
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
+  if (!session?.user) return null
+  const result = await pool.query(`SELECT display_name AS name, email, phone FROM app_users WHERE auth_user_id = $1 LIMIT 1`, [session.user.id])
+  return { id: session.user.id, name: result.rows[0]?.name || session.user.name, email: session.user.email, phone: result.rows[0]?.phone || null, image: session.user.image }
+}
+
+async function updateCurrentUser(body, request) {
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
+  if (!session?.user) throw httpError('Please sign in to update your profile.', 401)
+  const name = String(body.name || '').trim()
+  const phone = String(body.phone || '').trim()
+  if (name.length < 2) throw httpError('Please provide a valid name.')
+  if (!phone) throw httpError('Please provide your mobile number.')
+  await pool.query(`UPDATE app_users SET display_name = $1, phone = $2, updated_at = now() WHERE auth_user_id = $3`, [name, phone, session.user.id])
+  return { user: await getCurrentUser(request) }
 }
 
 async function handleRequest(request, response) {
@@ -399,9 +419,9 @@ async function handleRequest(request, response) {
   }
   if (request.method === 'GET' && url.pathname === '/api/events') return sendJson(response, 200, { events: await listEvents() })
   if (request.method === 'GET' && url.pathname === '/api/me') {
-    const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
-    return sendJson(response, 200, { user: session?.user || null })
+    return sendJson(response, 200, { user: await getCurrentUser(request) })
   }
+  if (request.method === 'PATCH' && url.pathname === '/api/me') return sendJson(response, 200, await updateCurrentUser(await parseBody(request), request))
   if (request.method === 'GET' && url.pathname === '/api/me/registrations') return sendJson(response, 200, await getMemberDashboard(request))
   if (request.method === 'GET' && url.pathname.startsWith('/api/events/') && url.pathname.endsWith('/form')) return sendJson(response, 200, { form: await getFormForEvent(url.pathname.split('/')[3]) })
    if (request.method === 'POST' && url.pathname === '/api/registrations') return sendJson(response, 201, { registration: await createRegistration(await parseBody(request), request) })

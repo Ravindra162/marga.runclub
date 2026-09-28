@@ -21,17 +21,18 @@ try {
     console.log('Marga Run Club PostgreSQL schema already exists; applying seed only.')
     await client.query(`
       ALTER TABLE app_users ADD COLUMN IF NOT EXISTS auth_user_id text;
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS phone text;
       CREATE UNIQUE INDEX IF NOT EXISTS app_users_auth_user_id_idx ON app_users (auth_user_id) WHERE auth_user_id IS NOT NULL;
       CREATE TABLE IF NOT EXISTS "user" (
         "id" text NOT NULL PRIMARY KEY,
         "name" text NOT NULL,
         "email" text NOT NULL UNIQUE,
-        "emailVerified" boolean NOT NULL,
-        "image" text,
-        "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+         "emailVerified" boolean NOT NULL,
+         "image" text,
+         "createdAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
         "updatedAt" timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS "session" (
+       CREATE TABLE IF NOT EXISTS "session" (
         "id" text NOT NULL PRIMARY KEY,
         "expiresAt" timestamptz NOT NULL,
         "token" text NOT NULL UNIQUE,
@@ -39,8 +40,8 @@ try {
         "updatedAt" timestamptz NOT NULL,
         "ipAddress" text,
         "userAgent" text,
-        "userId" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
-      );
+         "userId" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+       );
       CREATE TABLE IF NOT EXISTS "account" (
         "id" text NOT NULL PRIMARY KEY,
         "accountId" text NOT NULL,
