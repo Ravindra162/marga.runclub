@@ -164,8 +164,28 @@ async function createRegistration(body, request) {
     `, [organizationId, name, email, phone])
     const participantId = participantResult.rows[0].id
     if (session?.user?.id) await client.query(`UPDATE app_users SET phone = COALESCE($1, phone), updated_at = now() WHERE auth_user_id = $2`, [phone, session.user.id])
-    const existing = await client.query(`SELECT registration_code, status FROM registrations WHERE occurrence_id = $1 AND participant_id = $2 AND status NOT IN ('cancelled', 'expired', 'refunded') LIMIT 1`, [occurrence.id, participantId])
-    if (existing.rowCount) throw Object.assign(httpError(`You already have a ${existing.rows[0].status.replace('_', ' ')} registration for this event.`, 409), { registration: existing.rows[0] })
+    const existing = await client.query(`
+      SELECT r.id, r.registration_code, r.status, po.status AS payment_status, po.expires_at
+      FROM registrations r
+      LEFT JOIN payment_orders po ON po.registration_id = r.id
+      WHERE r.occurrence_id = $1 AND r.participant_id = $2 AND r.status NOT IN ('cancelled', 'expired', 'refunded')
+      ORDER BY r.created_at DESC
+      LIMIT 1
+      FOR UPDATE OF r
+    `, [occurrence.id, participantId])
+    if (existing.rowCount) {
+      const previous = existing.rows[0]
+      const paymentCanBeRetried = ['awaiting_payment', 'payment_pending'].includes(previous.status) && (
+        !previous.payment_status ||
+        ['failed', 'cancelled', 'expired'].includes(previous.payment_status) ||
+        (previous.expires_at && new Date(previous.expires_at).getTime() <= Date.now())
+      )
+      if (paymentCanBeRetried) {
+        await client.query(`UPDATE registrations SET status = 'cancelled', cancelled_at = now(), updated_at = now() WHERE id = $1`, [previous.id])
+      } else {
+        throw Object.assign(httpError(`You already have a ${previous.status.replace('_', ' ')} registration for this event.`, 409), { registration: previous })
+      }
+    }
     const submissionId = randomUUID()
     await client.query(`INSERT INTO form_submissions (id, form_version_id, occurrence_id, participant_id, response_token, status, answers_json, submitted_from, submitted_at) VALUES ($1, $2, $3, $4, $5, 'submitted', $6::jsonb, $7, now())`, [submissionId, occurrence.form_version_id, occurrence.id, participantId, randomUUID(), JSON.stringify(answers), body.source || 'website'])
     for (const field of fields.rows) {
@@ -320,7 +340,7 @@ async function applyPaymentStatus(providerPayload) {
          }
        }
     }
-    if (status === 'failed') await client.query(`UPDATE registrations SET status = 'awaiting_payment', updated_at = now() WHERE id = $1 AND status = 'payment_pending'`, [payment.registration_id])
+    if (status === 'failed') await client.query(`UPDATE registrations SET status = 'cancelled', cancelled_at = now(), updated_at = now() WHERE id = $1 AND status IN ('awaiting_payment', 'payment_pending')`, [payment.registration_id])
     return {
       merchantOrderId: payment.merchant_order_id,
       status,
@@ -343,6 +363,40 @@ async function applyPaymentStatus(providerPayload) {
      }
    }
    return result
+}
+
+async function cancelRegistrationPayment(body) {
+  const registrationCodeValue = String(body.registrationCode || '').trim()
+  if (!registrationCodeValue) throw httpError('registrationCode is required.')
+  const current = await pool.query(`
+    SELECT r.id, r.status, po.provider_order_id
+    FROM registrations r
+    LEFT JOIN payment_orders po ON po.registration_id = r.id
+    WHERE r.registration_code = $1
+  `, [registrationCodeValue])
+  if (!current.rowCount) throw httpError('Registration not found.', 404)
+  if (current.rows[0].provider_order_id) {
+    const provider = await getOrderStatus(current.rows[0].provider_order_id)
+    if (provider.state === 'COMPLETED') {
+      const applied = await applyPaymentStatus(provider)
+      return { registrationCode: registrationCodeValue, status: applied.registrationStatus || 'confirmed' }
+    }
+  }
+  return withTransaction(async (client) => {
+    const result = await client.query(`
+      SELECT r.id, r.status, po.id AS payment_order_id, po.status AS payment_status
+      FROM registrations r
+      LEFT JOIN payment_orders po ON po.registration_id = r.id
+      WHERE r.registration_code = $1
+      FOR UPDATE OF r
+    `, [registrationCodeValue])
+    if (!result.rowCount) throw httpError('Registration not found.', 404)
+    const row = result.rows[0]
+    if (row.payment_status === 'paid' || row.status === 'confirmed') throw httpError('This payment has already been confirmed.', 409)
+    if (row.status !== 'cancelled') await client.query(`UPDATE registrations SET status = 'cancelled', cancelled_at = now(), updated_at = now() WHERE id = $1`, [row.id])
+    if (row.payment_order_id) await client.query(`UPDATE payment_orders SET status = 'cancelled', updated_at = now() WHERE id = $1 AND status NOT IN ('paid', 'refunded', 'partially_refunded')`, [row.payment_order_id])
+    return { registrationCode: registrationCodeValue, status: 'cancelled' }
+  })
 }
 
 async function verifyRazorpayPayment(body) {
@@ -429,6 +483,7 @@ async function handleRequest(request, response) {
   if (request.method === 'GET' && url.pathname.startsWith('/api/events/') && url.pathname.endsWith('/form')) return sendJson(response, 200, { form: await getFormForEvent(url.pathname.split('/')[3]) })
    if (request.method === 'POST' && url.pathname === '/api/registrations') return sendJson(response, 201, { registration: await createRegistration(await parseBody(request), request) })
   if (request.method === 'POST' && url.pathname === '/api/payments/orders') return sendJson(response, 201, { payment: await createPaymentOrder(await parseBody(request)) })
+  if (request.method === 'POST' && url.pathname === '/api/payments/cancel') return sendJson(response, 200, { payment: await cancelRegistrationPayment(await parseBody(request)) })
    if (request.method === 'POST' && url.pathname === '/api/payments/verify') return sendJson(response, 200, await verifyRazorpayPayment(await parseBody(request)))
    if (request.method === 'GET' && url.pathname.startsWith('/api/payments/') && url.pathname.endsWith('/status')) {
      const merchantId = url.pathname.split('/')[3]

@@ -52,6 +52,10 @@ async function verifyOrReconcilePayment({ registrationCode, payment, checkoutRes
   throw lastError
 }
 
+async function cancelPaymentRegistration(registrationCode) {
+  await fetch('/api/payments/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ registrationCode }) })
+}
+
 function DynamicField({ field, value, onChange }) {
   const config = field.config || {}
   if (field.type === 'heading') return <h3 className="dynamic-field-heading">{field.label}</h3>
@@ -143,7 +147,7 @@ export function RegistrationModal({ event, onClose, user }) {
                 resolve()
               } catch (verificationError) { reject(verificationError) }
             },
-             modal: { ondismiss: () => reject(new Error('Payment was cancelled. No slot was booked. You can try again anytime.')) },
+             modal: { ondismiss: async () => { await cancelPaymentRegistration(result.registration.registration_code || result.registration.registrationCode); reject(new Error('Payment was cancelled. No slot was booked. You can try again anytime.')) } },
           })
           checkout.open()
         })
