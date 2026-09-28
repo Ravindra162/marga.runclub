@@ -185,6 +185,12 @@ a { color: inherit; text-decoration: none; }
 .registration-modal textarea, .registration-modal select { min-height: 46px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 6px; outline: 0; color: var(--ink); background: #fff; font-size: 13px; }
 .registration-modal textarea { min-height: 92px; resize: vertical; }
 .registration-modal input[type="number"] { appearance: textfield; }
+.quantity-stepper { display: grid; grid-template-columns: 46px minmax(0, 1fr) 46px; height: 46px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; }
+.quantity-stepper button { border: 0; color: var(--orange); background: #f6f2f7; font-size: 24px; line-height: 1; cursor: pointer; }
+.quantity-stepper button:hover:not(:disabled) { background: #eee5ef; }
+.quantity-stepper button:disabled { color: var(--muted); cursor: not-allowed; opacity: .55; }
+.quantity-stepper input { width: 100%; height: 100%; padding: 0; border: 0; border-right: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 0; text-align: center; font-weight: 700; }
+.quantity-stepper input:focus { box-shadow: none; }
 .attendee-fieldset { display: flex; flex-direction: column; gap: 14px; margin: 2px 0; padding: 15px; border: 1px solid var(--line); border-radius: 6px; background: #f6f2f7; }
 .attendee-fieldset legend { padding: 0 5px; color: var(--orange); font: 700 18px/1 'Barlow Condensed', sans-serif; text-transform: uppercase; }
 .registration-modal textarea:focus, .registration-modal select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(228,87,46,.12); }
