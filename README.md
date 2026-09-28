@@ -82,6 +82,16 @@ https://your-project.vercel.app/api/payments/webhook
 
 The webhook secret in Razorpay must exactly match `RAZORPAY_WEBHOOK_SECRET` in Vercel. Do not commit `.env.local` or `server/.env`.
 
+### Payment confirmation email
+
+After Razorpay confirms a captured payment server-side, Marga sends one idempotent confirmation email through Gmail SMTP using a Google App Password. Keep `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` server-only. The email includes the participant name, event, date/time, venue, ticket, amount paid, registration code, Razorpay payment ID, and event details link.
+
+The database migration creates `email_deliveries` so duplicate payment verification or webhook delivery does not send duplicate confirmations. Run the setup command once after deploying the schema changes:
+
+```bash
+npm --prefix server run db:setup
+```
+
 ### Google sign-in configuration
 
 In Google Cloud Console, create an OAuth client with application type **Web application**. Add this authorized redirect URI:

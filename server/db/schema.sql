@@ -317,6 +317,23 @@ CREATE TABLE payment_attempts (
   UNIQUE (payment_order_id, attempt_number)
 );
 
+CREATE TABLE email_deliveries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  registration_id uuid NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+  email_type text NOT NULL CHECK (email_type IN ('registration_confirmation')),
+  recipient_email text NOT NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+  provider text NOT NULL DEFAULT 'resend',
+  provider_message_id text,
+  error_message text,
+  sent_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (registration_id, email_type)
+);
+
+CREATE INDEX email_deliveries_status_idx ON email_deliveries (status, created_at);
+
 CREATE UNIQUE INDEX payment_attempts_provider_transaction_idx
   ON payment_attempts (payment_order_id, provider_transaction_id)
   WHERE provider_transaction_id IS NOT NULL;

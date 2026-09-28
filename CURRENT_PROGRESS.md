@@ -52,6 +52,7 @@ The application is deployed and operational. The latest completed work addressed
 - Failed/cancelled/pending payments do not consume event capacity
 - Atomic capacity check during successful payment confirmation
 - Global text selection disabled except in inputs, textareas, selects, and registration codes
+- Payment confirmation emails through Gmail SMTP, with idempotent delivery tracking
 
 Google sign-in and the member registration dashboard are implemented and deployed. Organizer access still uses the existing `ADMIN_API_KEY` gate and has not yet migrated to organization-role authorization.
 
@@ -395,7 +396,7 @@ package-lock.json
 2. **Payment reconciliation monitoring** is not yet automated. Add a scheduled reconciliation job for stale `payment_pending` orders.
 3. **Refund/cancellation workflows** need organizer UI and Razorpay refund integration.
 4. **Webhook delivery** should be confirmed in Razorpay Test Mode and production monitoring should be added.
-5. **Email confirmations** are not yet a complete production notification system.
+5. **Email confirmations** require production Gmail SMTP credentials and a one-time database setup migration; delivery tracking and payment-confirmation email content are implemented.
 6. **Backups, retention, audit logs, and operational alerts** should be formalized before launch.
 7. The root README has some older deployment wording referring to `api/[...path].js`; the actual current Vercel entrypoint is `api/index.js` and `vercel.json` routes to `/api/index`.
 8. There is no committed automated test suite covering the full Razorpay callback/webhook lifecycle; add a red-capable integration test around payment reconciliation.

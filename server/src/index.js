@@ -6,6 +6,7 @@ import { auth, authIsConfigured } from './auth.js'
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import { adminOverview, archiveFormTemplate, createEventSeries, createFormTemplate, createOccurrence, listFormDetails, publishForm, requireAdmin, updateFormTemplate, updateOccurrence } from './admin.js'
 import { createCheckoutOrder, getOrderStatus, getPayment, merchantOrderId, razorpayConfigured, verifyPaymentSignature, verifyWebhookSignature } from './razorpay.js'
+import { sendRegistrationConfirmationEmail } from './email.js'
 
 const PORT = Number(process.env.PORT || 8787)
 const UI_ORIGIN = process.env.UI_ORIGIN || 'http://localhost:5173'
@@ -238,7 +239,7 @@ async function applyPaymentStatus(providerPayload) {
     const payment = order.rows[0]
     const providerState = String(providerPayload.state || '').toUpperCase()
     if (providerPayload.amount !== undefined && Number(providerPayload.amount) !== Number(payment.amount_minor)) throw httpError('Payment amount mismatch.', 400)
-    const latest = providerPayload.payment || {}
+    const latest = providerPayload.payment || providerPayload.payload?.payment?.entity || providerPayload
     let status = payment.status
     if (providerState === 'COMPLETED') status = 'paid'
     else if (providerState === 'FAILED') status = 'failed'
@@ -253,12 +254,19 @@ async function applyPaymentStatus(providerPayload) {
     `, [payment.id, providerState === 'COMPLETED' ? 'success' : providerState === 'FAILED' ? 'failed' : 'pending', latest.method || null, latest.id || null, latest.error_code || null, JSON.stringify(latest)])
     let registrationStatus = null
     let requiresRefund = false
+    let confirmationEmail = null
     if (status === 'paid') {
       const registration = await client.query(`
-        SELECT r.id, r.occurrence_id, o.capacity
+        SELECT r.id, r.registration_code, r.occurrence_id, r.total_amount_minor, r.currency, o.capacity,
+          o.starts_at, o.location, s.title AS event_title, p.full_name, p.email,
+          COALESCE(ri.ticket_name_snapshot, 'Standard entry') AS ticket_name
         FROM registrations r
         JOIN event_occurrences o ON o.id = r.occurrence_id
+        JOIN event_series s ON s.id = o.event_series_id
+        JOIN participants p ON p.id = r.participant_id
+        LEFT JOIN registration_items ri ON ri.registration_id = r.id
         WHERE r.id = $1
+        LIMIT 1
         FOR UPDATE OF r, o
       `, [payment.registration_id])
       if (!registration.rowCount) throw httpError('Registration not found while confirming payment.', 404)
@@ -270,13 +278,36 @@ async function applyPaymentStatus(providerPayload) {
           registrationStatus = 'expired'
           requiresRefund = true
         } else {
-          registrationStatus = 'confirmed'
-          await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
+           registrationStatus = 'confirmed'
+           await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
         }
       } else {
-        registrationStatus = 'confirmed'
-        await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
-      }
+         registrationStatus = 'confirmed'
+         await client.query(`UPDATE registrations SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, now()), updated_at = now() WHERE id = $1`, [payment.registration_id])
+       }
+       if (registrationStatus === 'confirmed') {
+         const delivery = await client.query(`
+           INSERT INTO email_deliveries (registration_id, email_type, recipient_email)
+           VALUES ($1, 'registration_confirmation', $2)
+           ON CONFLICT (registration_id, email_type) DO UPDATE SET status = 'pending', error_message = NULL, updated_at = now()
+           WHERE email_deliveries.status IN ('pending', 'failed')
+           RETURNING id
+         `, [payment.registration_id, row.email])
+         if (delivery.rowCount) confirmationEmail = {
+           deliveryId: delivery.rows[0].id,
+           occurrenceId: row.occurrence_id,
+           registrationCode: row.registration_code,
+           fullName: row.full_name,
+           email: row.email,
+           eventTitle: row.event_title,
+           startsAt: row.starts_at,
+           location: row.location?.venue || row.location?.address || 'Location to be announced',
+           ticketName: row.ticket_name,
+           amountMinor: row.total_amount_minor,
+           currency: row.currency,
+           paymentId: latest.id,
+         }
+       }
     }
     if (status === 'failed') await client.query(`UPDATE registrations SET status = 'awaiting_payment', updated_at = now() WHERE id = $1 AND status = 'payment_pending'`, [payment.registration_id])
     return {
@@ -284,9 +315,23 @@ async function applyPaymentStatus(providerPayload) {
       status,
       registrationStatus,
       requiresRefund,
-      message: requiresRefund ? 'Payment succeeded, but this event became full before confirmation. Please contact the organizers for a refund.' : undefined,
-    }
-  })
+       message: requiresRefund ? 'Payment succeeded, but this event became full before confirmation. Please contact the organizers for a refund.' : undefined,
+       confirmationEmail,
+     }
+   })
+   if (result.confirmationEmail) {
+     try {
+       const delivery = await sendRegistrationConfirmationEmail(result.confirmationEmail)
+       if (delivery.skipped) return { ...result, emailStatus: 'not_configured', confirmationEmail: undefined }
+       await pool.query(`UPDATE email_deliveries SET status = 'sent', provider_message_id = $1, sent_at = now(), updated_at = now() WHERE id = $2`, [delivery.providerId || null, result.confirmationEmail.deliveryId])
+       return { ...result, emailStatus: 'sent', confirmationEmail: undefined }
+     } catch (error) {
+       console.error('Confirmation email failed:', error)
+       await pool.query(`UPDATE email_deliveries SET status = 'failed', error_message = $1, updated_at = now() WHERE id = $2`, [error.message, result.confirmationEmail.deliveryId])
+       return { ...result, emailStatus: 'failed', confirmationEmail: undefined }
+     }
+   }
+   return result
 }
 
 async function verifyRazorpayPayment(body) {

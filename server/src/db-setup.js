@@ -73,6 +73,21 @@ try {
       ALTER TABLE payment_orders ALTER COLUMN provider SET DEFAULT 'razorpay';
       UPDATE payment_webhook_events SET provider = 'razorpay' WHERE provider = 'phonepe';
       ALTER TABLE payment_webhook_events ALTER COLUMN provider SET DEFAULT 'razorpay';
+      CREATE TABLE IF NOT EXISTS email_deliveries (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        registration_id uuid NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+        email_type text NOT NULL CHECK (email_type IN ('registration_confirmation')),
+        recipient_email text NOT NULL,
+        status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+        provider text NOT NULL DEFAULT 'resend',
+        provider_message_id text,
+        error_message text,
+        sent_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (registration_id, email_type)
+      );
+      CREATE INDEX IF NOT EXISTS email_deliveries_status_idx ON email_deliveries (status, created_at);
     `)
   }
   await client.query(await readFile(join(root, '..', 'db', 'seed.sql'), 'utf8'))
