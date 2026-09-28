@@ -12,6 +12,12 @@ button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
 .app-shell { min-height: 100vh; overflow: hidden; background: var(--canvas); }
+.loading-shell { display: grid; min-height: 100vh; place-items: center; align-content: center; gap: 14px; color: var(--muted); font-size: 13px; }
+.loading-shell p { margin: 0; }
+.running-loader { display: grid; place-items: center; width: 82px; height: 82px; border: 2px solid var(--line); border-radius: 50%; background: #fff; box-shadow: 0 7px 0 var(--orange); animation: loader-bob 1s ease-in-out infinite; }
+.running-loader span { display: block; font-size: 36px; animation: loader-run 0.7s steps(2, end) infinite; }
+@keyframes loader-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-7px) rotate(3deg); } }
+@keyframes loader-run { 0%, 100% { transform: translateX(-3px) scaleX(1); } 50% { transform: translateX(3px) scaleX(-1); } }
 .page-container { width: min(100% - 48px, 1216px); margin-inline: auto; }
 .site-header { position: sticky; top: 0; z-index: 20; background: rgba(251,248,252,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
 .header-inner { width: min(100% - 48px, 1216px); height: 80px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
@@ -178,6 +184,9 @@ a { color: inherit; text-decoration: none; }
 .success-state p { margin: 0 auto 22px; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .registration-modal textarea, .registration-modal select { min-height: 46px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 6px; outline: 0; color: var(--ink); background: #fff; font-size: 13px; }
 .registration-modal textarea { min-height: 92px; resize: vertical; }
+.registration-modal input[type="number"] { appearance: textfield; }
+.attendee-fieldset { display: flex; flex-direction: column; gap: 14px; margin: 2px 0; padding: 15px; border: 1px solid var(--line); border-radius: 6px; background: #f6f2f7; }
+.attendee-fieldset legend { padding: 0 5px; color: var(--orange); font: 700 18px/1 'Barlow Condensed', sans-serif; text-transform: uppercase; }
 .registration-modal textarea:focus, .registration-modal select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(228,87,46,.12); }
 .checkbox-field { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 9px !important; color: var(--muted) !important; font-weight: 500 !important; line-height: 1.45; }
 .checkbox-field input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--orange); }
