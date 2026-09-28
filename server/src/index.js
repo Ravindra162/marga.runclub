@@ -111,6 +111,8 @@ async function getFormForEvent(eventId) {
 async function createRegistration(body, request) {
   const eventId = String(body.eventId || '').trim()
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : {}
+  const quantity = Math.max(1, Math.min(10, Number(body.quantity) || 1))
+  const attendees = Array.isArray(body.attendees) ? body.attendees.slice(0, quantity - 1) : []
   if (!eventId) throw httpError('Please provide a valid event.')
   const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
 
@@ -126,8 +128,8 @@ async function createRegistration(body, request) {
     const occurrence = occurrenceResult.rows[0]
 
     if (occurrence.capacity) {
-      const countResult = await client.query(`SELECT count(*)::int AS count FROM registrations WHERE occurrence_id = $1 AND status = 'confirmed'`, [occurrence.id])
-      if (countResult.rows[0].count >= occurrence.capacity) throw httpError('This event is full. Please contact the organizers for a waitlist spot.', 409)
+      const countResult = await client.query(`SELECT COALESCE(SUM(COALESCE(ri.quantity, 1)), 0)::int AS count FROM registrations r LEFT JOIN registration_items ri ON ri.registration_id = r.id WHERE r.occurrence_id = $1 AND r.status = 'confirmed'`, [occurrence.id])
+      if (countResult.rows[0].count + quantity > occurrence.capacity) throw httpError(`Only ${Math.max(0, occurrence.capacity - countResult.rows[0].count)} spots remain.`, 409)
     }
     if (!occurrence.form_version_id) throw httpError('This event form is not configured yet.', 503)
 
@@ -141,6 +143,10 @@ async function createRegistration(body, request) {
     const email = identity.email
     const phone = identity.phone
     if (name.length < 2 || !email.includes('@')) throw httpError('Please provide a valid name and email address.')
+    if (attendees.length !== quantity - 1) throw httpError('Please provide details for every additional attendee.')
+    for (const attendee of attendees) {
+      if (String(attendee?.name || '').trim().length < 2 || !String(attendee?.email || '').includes('@')) throw httpError('Each additional attendee needs a valid name and email address.')
+    }
     for (const field of fields.rows) {
       const value = answers[field.field_key]
       if (field.is_required && (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length))) throw httpError(`${field.label} is required.`, 400)
@@ -165,7 +171,7 @@ async function createRegistration(body, request) {
 
     const ticketResult = await client.query(`SELECT id, name, amount_minor, currency FROM event_tickets WHERE occurrence_id = $1 AND active = true ORDER BY amount_minor ASC, created_at ASC LIMIT 1`, [occurrence.id])
     const ticket = ticketResult.rows[0] || null
-    const totalAmountMinor = ticket ? Number(ticket.amount_minor) : 0
+    const totalAmountMinor = ticket ? Number(ticket.amount_minor) * quantity : 0
     const status = totalAmountMinor === 0 ? 'confirmed' : 'awaiting_payment'
     const registrationResult = await client.query(`
       INSERT INTO registrations (registration_code, occurrence_id, participant_id, form_submission_id, form_version_id, status, total_amount_minor, currency, source, confirmed_at)
@@ -173,8 +179,9 @@ async function createRegistration(body, request) {
       RETURNING id, registration_code, status, total_amount_minor, currency, confirmed_at
     `, [registrationCode(), occurrence.id, participantId, submissionId, occurrence.form_version_id, status, totalAmountMinor, ticket?.currency || 'INR', status === 'confirmed' ? new Date() : null])
     const registration = registrationResult.rows[0]
-    if (ticket) await client.query(`INSERT INTO registration_items (registration_id, ticket_id, quantity, unit_amount_minor, total_amount_minor, ticket_name_snapshot) VALUES ($1, $2, 1, $3, $3, $4)`, [registration.id, ticket.id, ticket.amount_minor, ticket.name])
-    return { ...registration, paymentRequired: totalAmountMinor > 0, paymentStatus: totalAmountMinor > 0 ? 'not_started' : 'not_required', eventTitle: occurrence.title }
+    if (ticket) await client.query(`INSERT INTO registration_items (registration_id, ticket_id, quantity, unit_amount_minor, total_amount_minor, ticket_name_snapshot) VALUES ($1, $2, $3, $4, $5, $6)`, [registration.id, ticket.id, quantity, ticket.amount_minor, totalAmountMinor, ticket.name])
+    await client.query(`UPDATE form_submissions SET answers_json = answers_json || $2::jsonb WHERE id = $1`, [submissionId, JSON.stringify({ attendees })])
+    return { ...registration, quantity, paymentRequired: totalAmountMinor > 0, paymentStatus: totalAmountMinor > 0 ? 'not_started' : 'not_required', eventTitle: occurrence.title }
   })
 }
 
@@ -272,8 +279,9 @@ async function applyPaymentStatus(providerPayload) {
       if (!registration.rowCount) throw httpError('Registration not found while confirming payment.', 404)
       const row = registration.rows[0]
       if (row.capacity) {
-        const confirmed = await client.query(`SELECT count(*)::int AS count FROM registrations WHERE occurrence_id = $1 AND status = 'confirmed' AND id <> $2`, [row.occurrence_id, row.id])
-        if (confirmed.rows[0].count >= row.capacity) {
+        const confirmed = await client.query(`SELECT COALESCE(SUM(COALESCE(ri.quantity, 1)), 0)::int AS count FROM registrations r LEFT JOIN registration_items ri ON ri.registration_id = r.id WHERE r.occurrence_id = $1 AND r.status = 'confirmed' AND r.id <> $2`, [row.occurrence_id, row.id])
+        const requested = await client.query(`SELECT COALESCE(SUM(quantity), 1)::int AS quantity FROM registration_items WHERE registration_id = $1`, [row.id])
+        if (confirmed.rows[0].count + requested.rows[0].quantity > row.capacity) {
           await client.query(`UPDATE registrations SET status = 'expired', updated_at = now() WHERE id = $1`, [row.id])
           registrationStatus = 'expired'
           requiresRefund = true

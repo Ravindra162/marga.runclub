@@ -323,7 +323,7 @@ CREATE TABLE email_deliveries (
   email_type text NOT NULL CHECK (email_type IN ('registration_confirmation')),
   recipient_email text NOT NULL,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
-  provider text NOT NULL DEFAULT 'resend',
+  provider text NOT NULL DEFAULT 'gmail_smtp',
   provider_message_id text,
   error_message text,
   sent_at timestamptz,
