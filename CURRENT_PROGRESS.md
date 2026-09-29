@@ -28,7 +28,7 @@ The production alias is the important URL; the deployment-specific URL is includ
 
 ## Current objective/status
 
-The application is deployed and operational. The latest completed work addressed:
+The application is deployed and operational. The latest local `main` commits extend the registration and delivery pipeline. The latest completed work addressed:
 
 - Dynamic event occurrences and event-series management
 - Dynamic Google-Forms-style registration forms
@@ -53,8 +53,12 @@ The application is deployed and operational. The latest completed work addressed
 - Atomic capacity check during successful payment confirmation
 - Global text selection disabled except in inputs, textareas, selects, and registration codes
 - Payment confirmation emails through Gmail SMTP, with idempotent delivery tracking
+- Multi-ticket registration with a quantity stepper and per-attendee details
+- Profile editing for signed-in members, including persisted mobile numbers
+- Stronger profile and additional-attendee validation on both client and server
+- Retry after failed, cancelled, or expired payment attempts without leaving the participant permanently blocked
 
-Google sign-in and the member registration dashboard are implemented and deployed. Organizer access still uses the existing `ADMIN_API_KEY` gate and has not yet migrated to organization-role authorization.
+Google sign-in and the member registration dashboard are implemented and deployed. Signed-in members can edit their profile and registration supports multiple tickets/attendees. Organizer access still uses the existing `ADMIN_API_KEY` gate and has not yet migrated to organization-role authorization.
 
 ## Architecture
 
@@ -222,6 +226,7 @@ GET  /api/payments/:merchantOrderId/status
 POST /api/payments/webhook
 GET  /api/me
 GET  /api/me/registrations
+PATCH /api/me
 POST /api/auth/sign-in/social
 POST /api/auth/sign-out
 ```
@@ -253,6 +258,15 @@ POST /api/payments/webhook
   validates Razorpay webhook signature
   handles captured/paid/failed events idempotently
 ```
+
+Registration details:
+
+- A registration accepts `quantity` from 1 through 10.
+- Paid totals are calculated server-side as ticket price multiplied by quantity.
+- Additional attendees are stored with the form submission and require a valid name; an optional email must contain `@`.
+- Capacity counts confirmed ticket quantities, not just registration rows.
+- If an earlier registration for the same participant/event is awaiting payment or payment-pending and its payment is failed, cancelled, expired, or past its expiry time, it is cancelled and a new registration can be created.
+- Existing active registrations still prevent duplicate registration for the same participant and event.
 
 The latest payment fix added:
 
@@ -303,7 +317,7 @@ Another older order was still genuinely `created` at Razorpay, so it was correct
 
 Do not manually mark future registrations confirmed without checking the Razorpay order/payment state.
 
-## Validation commands
+## Validation
 
 Run these from the project root:
 
@@ -361,14 +375,19 @@ After deployment, verify:
 
 ## Current worktree state
 
-The worktree is clean after the latest documentation commit. The latest pushed commits are:
+The latest local commits are:
 
 ```text
-51461ea Fix payment capacity and simplify public navigation
-c2ceb62 Add Google member authentication dashboard
+4fff04b Add GitHub Actions CI pipeline
+5757bd3 Allow retry after cancelled payments
+432f6e8 Harden profile and attendee validation
+90af53f Add profile editing and attendee detail groups
+63f08fe Add ticket quantity stepper
+36c5f7e Add running loader for event loading
+dab517a Send payment confirmations through Gmail SMTP
 ```
 
-The production alias is deployed from the latest code. Do not reset or discard future user changes.
+`4fff04b` is ahead of `origin/main`; the remote tip observed during this update is `5757bd3`. The current worktree contains the uncommitted documentation cleanup described above. The production alias should be treated as deployed from the last explicitly deployed revision, not automatically assumed to include these newest local commits. Do not reset or discard future user changes.
 
 The current change set includes the original event/forms/Razorpay/Vercel work plus the latest organizer dashboard and payment reconciliation work. There is no requirement to commit or push this snapshot.
 
@@ -399,7 +418,9 @@ package-lock.json
 5. **Email confirmations** require production Gmail SMTP credentials and a one-time database setup migration; delivery tracking and payment-confirmation email content are implemented.
 6. **Backups, retention, audit logs, and operational alerts** should be formalized before launch.
 7. The root README has some older deployment wording referring to `api/[...path].js`; the actual current Vercel entrypoint is `api/index.js` and `vercel.json` routes to `/api/index`.
-8. There is no committed automated test suite covering the full Razorpay callback/webhook lifecycle; add a red-capable integration test around payment reconciliation.
+8. There is no committed automated test suite covering the full Razorpay callback/webhook lifecycle; add a red-capable integration test around payment reconciliation when the project is ready for test infrastructure.
+9. **Multi-ticket attendee identity** is currently captured in the submission JSON; decide whether attendees need first-class records, per-attendee ticket identities, or check-in support before expanding the event operations workflow.
+10. **Latest local changes are not all deployed/pushed.** Build and smoke-test the registration quantity, profile editing, and retry changes before promoting them to production.
 
 ## Safe next-session startup checklist
 

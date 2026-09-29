@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { gsap } from 'gsap'
 import { CommunitySection } from './components/CommunitySection'
 import { EventsSection } from './components/EventsSection'
 import { Footer } from './components/Footer'
@@ -50,6 +51,43 @@ function App() {
     fetch('/api/me', { credentials: 'include' }).then((response) => response.json()).then((result) => setUser(result.user || null)).catch(() => {})
   }, [])
   const visibleEvents = useMemo(() => activeFilter === 'All Events' ? events : events.filter((event) => event.category === activeFilter), [activeFilter, events])
+  useLayoutEffect(() => {
+    if (loading) return undefined
+    const scope = document.querySelector('.app-shell')
+    if (!scope) return undefined
+    const context = gsap.context(() => {
+      const motion = gsap.matchMedia()
+      motion.add({ reduceMotion: '(prefers-reduced-motion: reduce)', mobile: '(max-width: 700px)' }, ({ conditions }) => {
+        const { reduceMotion, mobile } = conditions
+        const targets = '.site-header, .marquee, .event-card, .value-card, .closing-card'
+        if (reduceMotion) {
+          gsap.set(targets, { clearProps: 'all', autoAlpha: 1 })
+          return
+        }
+
+        const lift = mobile ? 14 : 28
+        const revealDuration = mobile ? 0.48 : 0.7
+        gsap.timeline({ defaults: { ease: 'power3.out' } })
+          .from('.site-header', { y: mobile ? -10 : -24, autoAlpha: 0, duration: mobile ? 0.4 : 0.65 })
+          .from('.marquee', { y: mobile ? 8 : 18, autoAlpha: 0, duration: mobile ? 0.35 : 0.5 }, '-=0.15')
+        if (!mobile) gsap.to('.pulse-dot', { scale: 1.45, opacity: 0.55, duration: 0.75, repeat: -1, yoyo: true, ease: 'sine.inOut' })
+
+        const observers = gsap.utils.toArray('.event-card, .value-card, .closing-card').map((element) => {
+          gsap.set(element, { y: lift, autoAlpha: 0 })
+          const observer = new IntersectionObserver(([entry]) => {
+            if (!entry.isIntersecting) return
+            gsap.to(element, { y: 0, autoAlpha: 1, duration: revealDuration, ease: 'power3.out' })
+            observer.disconnect()
+          }, { threshold: 0.16 })
+          observer.observe(element)
+          return observer
+        })
+        return () => observers.forEach((observer) => observer.disconnect())
+      })
+      return () => motion.revert()
+    }, scope)
+    return () => context.revert()
+  }, [loading, visibleEvents.length])
   const openEvent = (event) => setSelectedEvent(event === 'all' ? events[0] : event)
   const scrollToEvents = () => eventsRef.current?.scrollIntoView({ behavior: 'smooth' })
   const signIn = async () => {

@@ -205,6 +205,14 @@ a { color: inherit; text-decoration: none; }
 .profile-summary strong { font-size: 14px; }
 .profile-message { margin: 14px 0 0; color: var(--orange); font-size: 12px; font-weight: 700; }
 @media (max-width: 700px) { .profile-form, .profile-summary { grid-template-columns: 1fr; } .member-profile-card { padding: 18px; } }
+@media (max-width: 700px) {
+  .event-card, .value-card, .closing-card { will-change: opacity, transform; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .running-loader, .running-loader span, .pulse-dot { animation: none !important; }
+  .button, .event-card, .event-action, .hero-frame img { transition: none !important; }
+}
 .registration-modal textarea:focus, .registration-modal select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(228,87,46,.12); }
 .checkbox-field { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 9px !important; color: var(--muted) !important; font-weight: 500 !important; line-height: 1.45; }
 .checkbox-field input { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--orange); }
